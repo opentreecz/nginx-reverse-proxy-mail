@@ -1,0 +1,22 @@
+# SMTP.
+#   25  - MTA-to-MTA relay, STARTTLS negotiated in-protocol -> plain passthrough
+#   587 - authenticated submission, STARTTLS negotiated in-protocol -> plain passthrough
+#   465 - "SMTPS", implicit TLS -> terminated here, plaintext to backend
+server {
+    listen 25;
+    listen [::]:25;
+    proxy_pass ${SMTP_BACKEND};
+}
+
+server {
+    listen 587;
+    listen [::]:587;
+    proxy_pass ${SMTP_SUBMISSION_BACKEND};
+}
+
+server {
+    listen 465 ssl;
+    listen [::]:465 ssl;
+    include /etc/nginx/snippets/ssl-params.conf;
+    proxy_pass ${SMTPS_BACKEND};
+}

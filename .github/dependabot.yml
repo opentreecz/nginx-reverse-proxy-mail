@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # GitHub Actions used across all workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Base image referenced in docker/Dockerfile (debian:stable-slim).
+  # nginx/OpenSSL themselves are version-pinned via docker/NGINX_VERSION and
+  # docker/OPENSSL_VERSION, kept current by .github/workflows/scheduled-rebuild.yml.
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+
+  # Python deps for the MkDocs documentation site
+  - package-ecosystem: "pip"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"

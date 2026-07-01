@@ -1,0 +1,21 @@
+## Environment / secrets
+.env
+*.env
+!.env.example
+
+## Let's Encrypt / certbot runtime data
+data/
+letsencrypt/
+
+## Editor / OS cruft
+.DS_Store
+*.swp
+*~
+
+## Build artifacts
+*.tar.gz
+dist/
+site/
+
+## Logs
+*.log

@@ -1,0 +1,15 @@
+# POP3.
+#   110 - STARTTLS negotiated in-protocol -> plain passthrough
+#   995 - "POP3S", implicit TLS -> terminated here, plaintext to backend
+server {
+    listen 110;
+    listen [::]:110;
+    proxy_pass ${POP3_BACKEND};
+}
+
+server {
+    listen 995 ssl;
+    listen [::]:995 ssl;
+    include /etc/nginx/snippets/ssl-params.conf;
+    proxy_pass ${POP3S_BACKEND};
+}

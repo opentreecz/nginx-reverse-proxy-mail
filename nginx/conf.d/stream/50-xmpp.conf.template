@@ -1,0 +1,22 @@
+# XMPP.
+#   5222 - client-to-server, STARTTLS negotiated in-protocol -> plain passthrough
+#   5269 - server-to-server, STARTTLS negotiated in-protocol -> plain passthrough
+#   5223 - legacy client-to-server implicit TLS -> terminated here, plaintext to backend
+server {
+    listen 5222;
+    listen [::]:5222;
+    proxy_pass ${XMPP_CLIENT_BACKEND};
+}
+
+server {
+    listen 5269;
+    listen [::]:5269;
+    proxy_pass ${XMPP_SERVER_BACKEND};
+}
+
+server {
+    listen 5223 ssl;
+    listen [::]:5223 ssl;
+    include /etc/nginx/snippets/ssl-params.conf;
+    proxy_pass ${XMPPS_CLIENT_BACKEND};
+}

@@ -1,0 +1,15 @@
+# Free-form TCP passthrough slots for the two non-standard ports called out
+# in the project spec (4040, 44337). Plain TCP passthrough works for either
+# raw TCP or HTTP(S) traffic; point CUSTOM_TCP_*_BACKEND at whatever
+# actually listens there and adjust/rename this file as needed.
+server {
+    listen ${CUSTOM_TCP_1_PORT};
+    listen [::]:${CUSTOM_TCP_1_PORT};
+    proxy_pass ${CUSTOM_TCP_1_BACKEND};
+}
+
+server {
+    listen ${CUSTOM_TCP_2_PORT};
+    listen [::]:${CUSTOM_TCP_2_PORT};
+    proxy_pass ${CUSTOM_TCP_2_BACKEND};
+}

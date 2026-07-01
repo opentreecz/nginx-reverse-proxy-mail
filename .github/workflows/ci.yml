@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint Dockerfile (hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: docker/Dockerfile
+          # DL3008/DL3015 (pin apt versions / --no-install-recommends) are
+          # relaxed on purpose: base-image freshness is handled by rebuilding
+          # regularly (see scheduled-rebuild.yml), not by pinning every
+          # transitive apt package version.
+          ignore: DL3008
+
+      - name: Lint shell scripts (shellcheck)
+        uses: ludeeus/action-shellcheck@2.0.0
+        with:
+          scandir: '.'
+          ignore_paths: docs
+
+      - name: Lint YAML (yamllint)
+        run: |
+          pip install --quiet yamllint
+          yamllint -d "{extends: default, rules: {line-length: disable, document-start: disable, truthy: {allowed-values: ['true','false','on','off']}}}" \
+            docker-compose.yml mkdocs.yml .github/workflows .github/dependabot.yml
+
+      - name: Lint Markdown (markdownlint)
+        uses: DavidAnson/markdownlint-cli2-action@v18
+        with:
+          globs: |
+            README.md
+            CHANGELOG.md
+            docs/**/*.md
+
+  compose-validate:
+    name: Validate docker-compose.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render .env and validate compose config
+        run: |
+          cp .env.example .env
+          docker compose config -q
+
+  build-and-test:
+    name: Build (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            load: true
+          - platform: linux/arm64
+            load: false
+          - platform: linux/arm/v7
+            load: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Read pinned versions
+        id: versions
+        run: |
+          echo "nginx=$(cat docker/NGINX_VERSION)" >> "$GITHUB_OUTPUT"
+          echo "openssl=$(cat docker/OPENSSL_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: ${{ matrix.load }}
+          tags: nginx-reverse-proxy-mail:test
+          build-args: |
+            NGINX_VERSION=${{ steps.versions.outputs.nginx }}
+            OPENSSL_VERSION=${{ steps.versions.outputs.openssl }}
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
+
+      - name: Validate nginx configuration
+        if: matrix.load
+        env:
+          IMAGE: nginx-reverse-proxy-mail:test
+        run: ./scripts/test-config.sh

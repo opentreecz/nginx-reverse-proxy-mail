@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)release, e.g. v1.2.3"
+        required: true
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    name: Build, publish, and release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Read pinned build versions
+        id: pins
+        run: |
+          echo "nginx=$(cat docker/NGINX_VERSION)" >> "$GITHUB_OUTPUT"
+          echo "openssl=$(cat docker/OPENSSL_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags/labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ steps.version.outputs.tag }}
+            type=raw,value=latest
+
+      - name: Build and push multi-arch image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NGINX_VERSION=${{ steps.pins.outputs.nginx }}
+            OPENSSL_VERSION=${{ steps.pins.outputs.openssl }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image (keyless)
+        run: |
+          cosign sign --yes \
+            "${REGISTRY}/${IMAGE_NAME,,}@${{ steps.build.outputs.digest }}"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-${{ steps.version.outputs.version }}.spdx.json
+
+      - name: Package configuration artifacts
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          STAGE="nginx-reverse-proxy-mail-${VERSION}"
+          mkdir -p "dist/${STAGE}"
+          cp -r nginx "dist/${STAGE}/nginx"
+          cp docker-compose.yml .env.example "dist/${STAGE}/"
+          ( cd dist && tar -czf "../nginx-config-${VERSION}.tar.gz" "${STAGE}" )
+          cp docker-compose.yml "docker-compose-${VERSION}.yml"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            nginx-config-${{ steps.version.outputs.version }}.tar.gz
+            docker-compose-${{ steps.version.outputs.version }}.yml
+            sbom-${{ steps.version.outputs.version }}.spdx.json

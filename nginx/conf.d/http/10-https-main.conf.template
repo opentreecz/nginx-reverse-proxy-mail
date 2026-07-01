@@ -1,0 +1,24 @@
+# Port 443: main HTTPS vhost, reverse-proxied to HTTPS_BACKEND
+# (webmail / website / mail admin UI - whatever sits behind this proxy).
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${DOMAIN} ${EXTRA_DOMAINS};
+
+    include /etc/nginx/snippets/ssl-params.conf;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    location / {
+        proxy_pass http://${HTTPS_BACKEND};
+        include /etc/nginx/snippets/proxy-params.conf;
+    }
+}
