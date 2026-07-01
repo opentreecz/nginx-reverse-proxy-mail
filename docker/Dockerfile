@@ -57,7 +57,8 @@ COPY docker/patches/ /usr/src/patches/
 # --- Fetch + verify nginx source -------------------------------------------------
 RUN curl -fsSL -o nginx.tar.gz "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" \
     && curl -fsSL -o nginx.tar.gz.asc "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz.asc" \
-    && export GNUPGHOME="$(mktemp -d)" \
+    && GNUPGHOME="$(mktemp -d)" \
+    && export GNUPGHOME \
     && for key in ${NGINX_GPG_KEYS}; do \
          gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "${key}" \
            || gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys "${key}"; \
