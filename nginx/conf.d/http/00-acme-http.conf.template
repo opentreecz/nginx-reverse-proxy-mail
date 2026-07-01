@@ -1,0 +1,24 @@
+# Port 80: ACME HTTP-01 challenge responder + unconditional redirect to
+# HTTPS for everything else. Never proxies application traffic itself.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN} ${EXTRA_DOMAINS};
+
+    # certbot webroot plugin drops challenge files here; the certbot
+    # sidecar and this nginx share the ./data/certbot/www volume.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+    }
+
+    # Used by docker/healthcheck.sh; must stay reachable over plain HTTP.
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

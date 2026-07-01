@@ -1,0 +1,52 @@
+site_name: nginx-reverse-proxy-mail
+site_description: >-
+  nginx, compiled from source, as a reverse proxy for SMTP/IMAP/POP3/NNTP/XMPP
+  and HTTP(S) with Let's Encrypt.
+site_url: https://opentreecz.github.io/nginx-reverse-proxy-mail/
+repo_name: opentreecz/nginx-reverse-proxy-mail
+repo_url: https://github.com/opentreecz/nginx-reverse-proxy-mail
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Ports & protocols: ports.md
+  - Configuration: configuration.md
+  - Let's Encrypt: letsencrypt.md
+  - Building the image: building.md
+  - CI/CD: ci-cd.md
+  - Release process: release-process.md
+  - Troubleshooting: troubleshooting.md

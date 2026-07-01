@@ -1,0 +1,77 @@
+####################################################################
+# nginx reverse proxy + Let's Encrypt (certbot) sidecar.
+#
+# Quick start:
+#   cp .env.example .env && $EDITOR .env
+#   ./scripts/init-letsencrypt.sh
+#   docker compose up -d
+#
+# See docs/index.md and docs/letsencrypt.md for the full walkthrough, and
+# .env.example for every backend variable used by the templates under
+# nginx/conf.d/.
+####################################################################
+
+services:
+  nginx:
+    image: ${IMAGE:-ghcr.io/opentreecz/nginx-reverse-proxy-mail}:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # HTTP(S)
+      - "80:80"
+      - "443:443"
+      - "8443:8443"
+      # SMTP
+      - "25:25"
+      - "587:587"
+      - "465:465"
+      # IMAP
+      - "143:143"
+      - "993:993"
+      # POP3
+      - "110:110"
+      - "995:995"
+      # NNTP
+      - "119:119"
+      - "563:563"
+      # XMPP
+      - "5222:5222"
+      - "5223:5223"
+      - "5269:5269"
+      # Custom TCP slots
+      - "4040:4040"
+      - "44337:44337"
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt:ro
+      - ./data/certbot/www:/var/www/certbot:ro
+    networks:
+      - proxy-net
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    # Renews any due certificate every 12h. Initial issuance is done by
+    # scripts/init-letsencrypt.sh, not by this loop.
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done"
+    depends_on:
+      - nginx
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    driver: bridge

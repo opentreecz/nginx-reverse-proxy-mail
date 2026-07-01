@@ -1,0 +1,15 @@
+# IMAP.
+#   143 - STARTTLS negotiated in-protocol -> plain passthrough
+#   993 - "IMAPS", implicit TLS -> terminated here, plaintext to backend
+server {
+    listen 143;
+    listen [::]:143;
+    proxy_pass ${IMAP_BACKEND};
+}
+
+server {
+    listen 993 ssl;
+    listen [::]:993 ssl;
+    include /etc/nginx/snippets/ssl-params.conf;
+    proxy_pass ${IMAPS_BACKEND};
+}

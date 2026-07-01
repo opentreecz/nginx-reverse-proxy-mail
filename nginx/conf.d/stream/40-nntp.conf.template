@@ -1,0 +1,15 @@
+# NNTP (Usenet).
+#   119 - STARTTLS negotiated in-protocol -> plain passthrough
+#   563 - "NNTPS", implicit TLS -> terminated here, plaintext to backend
+server {
+    listen 119;
+    listen [::]:119;
+    proxy_pass ${NNTP_BACKEND};
+}
+
+server {
+    listen 563 ssl;
+    listen [::]:563 ssl;
+    include /etc/nginx/snippets/ssl-params.conf;
+    proxy_pass ${NNTPS_BACKEND};
+}
