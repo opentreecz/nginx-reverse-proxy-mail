@@ -57,10 +57,21 @@ COPY docker/patches/ /usr/src/patches/
 # --- Fetch + verify nginx source -------------------------------------------------
 RUN curl -fsSL -o nginx.tar.gz "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" \
     && curl -fsSL -o nginx.tar.gz.asc "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz.asc" \
-    && export GNUPGHOME="$(mktemp -d)" \
+    && GNUPGHOME="$(mktemp -d)" \
+    && export GNUPGHOME \
     && for key in ${NGINX_GPG_KEYS}; do \
-         gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys "${key}" \
-           || gpg --batch --keyserver hkps://keyserver.ubuntu.com --recv-keys "${key}"; \
+         imported=""; \
+         for server in hkps://keyserver.ubuntu.com hkps://keys.openpgp.org; do \
+           gpg --batch --keyserver "${server}" --recv-keys "${key}" || true; \
+           if gpg --batch --list-keys "${key}" >/dev/null 2>&1; then \
+             imported=1; \
+             break; \
+           fi; \
+         done; \
+         if [ -z "${imported}" ]; then \
+           echo "Failed to fetch a usable (non-UID-stripped) GPG key ${key} from any keyserver" >&2; \
+           exit 1; \
+         fi; \
        done \
     && gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
     && mkdir -p nginx \
@@ -76,10 +87,12 @@ RUN curl -fsSL -o nginx.tar.gz "https://nginx.org/download/nginx-${NGINX_VERSION
 # --- Fetch + verify OpenSSL source -----------------------------------------------
 RUN curl -fsSL -o openssl.tar.gz "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz" \
     && curl -fsSL -o openssl.tar.gz.sha256 "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz.sha256" \
-    && echo "$(cat openssl.tar.gz.sha256)  openssl.tar.gz" | sha256sum -c - \
+    && OPENSSL_SHA256="$(awk '{print $1}' openssl.tar.gz.sha256)" \
+    && printf '%s  openssl.tar.gz\n' "${OPENSSL_SHA256}" > openssl.tar.gz.sha256sum \
+    && sha256sum -c openssl.tar.gz.sha256sum \
     && mkdir -p openssl \
     && tar -xzf openssl.tar.gz -C openssl --strip-components=1 \
-    && rm -f openssl.tar.gz openssl.tar.gz.sha256 \
+    && rm -f openssl.tar.gz openssl.tar.gz.sha256 openssl.tar.gz.sha256sum \
     && for p in /usr/src/patches/openssl/*.patch; do \
          [ -e "$p" ] || continue; \
          echo "Applying openssl patch: $p"; \
