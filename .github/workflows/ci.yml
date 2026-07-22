@@ -43,7 +43,7 @@ jobs:
             docker-compose.yml mkdocs.yml .github/workflows .github/dependabot.yml
 
       - name: Lint Markdown (markdownlint)
-        uses: DavidAnson/markdownlint-cli2-action@v23
+        uses: DavidAnson/markdownlint-cli2-action@v24
         with:
           globs: |
             README.md
